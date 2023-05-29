@@ -1,6 +1,6 @@
 <script>
 export default {
-  inject: ["getInstall", "changeCreateElement"],
+  inject: ["getInstall", "parentChildThis", "destroy"],
   props: {
     h: {
       type: Function,
@@ -21,11 +21,18 @@ export default {
     };
     if (this.getInstall) {
       this.render = this.h.bind(this.getInstall);
-      if (this.changeCreateElement) this.render = this.h.call(this.getInstall);
+      if (this.parentChildThis) this.render = this.h.call(this.getInstall);
     } else this.render = this.h;
+  },
+  mounted() {
+    if (this.getInstall && this.getInstall.__isRef)
+      Object.assign(this.getInstall.$refs, this.$refs);
   },
   render(h) {
     return this.render(h, this.ctx);
+  },
+  beforeDestroy() {
+    this.destroy && this.destroy();
   },
 };
 </script>

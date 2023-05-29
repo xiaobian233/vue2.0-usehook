@@ -1,132 +1,87 @@
 import { getInstall } from '.'
 const Vue = getInstall()
+const vUseData = 'useData'
+const mergeKey = '$useData'
+const optionKey = '_useData'
+const useReavtiveData = 'useReavtiveData'
+Vue.mixin({
+    beforeCreate() {
+        if (this.$options[useReavtiveData]) {
+            this[mergeKey] = this.$options[mergeKey]
+            forEach(this.$options[optionKey], (key, val) => {
+                defineProperty(this, key, this.$options[mergeKey])
+            })
+        }
+    }
+})
 export const forEach = (obj, callback) => {
     Object.keys(obj).forEach(key => {
         callback(key, obj[key])
     })
 }
-let setKeys = new Set()
-let activeMap = new Map()
-let activeThis = null
-let updatedCheck = null
-let extendParents = null
-let symbolKey = 'useData'
-const vModelKeyState = "vModelKeyState"
 export const _extend = Object.assign
-export const hasOwn = (obj, key) => key in obj
+export const hasOwn = (obj, key) => obj && (key in obj)
 export const isObject = obj => typeof obj === 'object' && obj !== null
 export const isString = val => typeof val === 'string'
-export const tryCatch = function (callback, bol) {
-    try { callback() } catch (e) {
-        bol && console.error(e)
-    }
-}
-const setter = function (key, mergeSymbolKey) {
+const setter = function (key, target) {
     return function (val) {
-        if (!mergeSymbolKey) this._vm[vModelKeyState][key] = val
-        else this[mergeSymbolKey]._vm[vModelKeyState] && (this[mergeSymbolKey]._vm[vModelKeyState][key] = val)
+        target._vm[vUseData][key] = val
+        return target._vm[vUseData][key]
     }
 }
-const getter = function (key, mergeSymbolKey) {
+const getter = function (key, target) {
     return function () {
-        if (!mergeSymbolKey) return this._vm[vModelKeyState][key]
-        else return this[mergeSymbolKey]._vm && this[mergeSymbolKey]._vm[vModelKeyState] && this[mergeSymbolKey]._vm[vModelKeyState][key]
+        return target._vm[vUseData][key]
     }
 }
-const defineProperty = function (target, key, mergeSymbolKey) {
-    Object.defineProperty(target, key, {
-        get: getter(key, mergeSymbolKey),
-        set: setter(key, mergeSymbolKey)
+const defineProperty = function (proxiTarget, key, target) {
+    Object.defineProperty(proxiTarget, key, {
+        get: getter(key, target),
+        set: setter(key, target)
     })
 }
 export class VModel {
     constructor(options) {
         this._options = options
-        this._vm = new Vue({ data: { [vModelKeyState]: { ...options } } })
-        forEach(options, (key) => {
-            defineProperty(this, key)
-        })
+        this._vm = new Vue({ data: { [vUseData]: { ...options } } })
     }
     add(key, value) {
-        this._vm.$set(this._vm[vModelKeyState], key, value)
+        this._vm.$set(this._vm[vUseData], key, value)
         this._options[key] = value
     }
-    destroy() {
-        this._vm && this._vm.destroy && this._vm.destroy()
-        this._vm = null
-    }
 }
-const hasSymbolKeyHandler = function (key) {
-    if (key === symbolKey) {
-        key = `$${symbolKey}`
-        if (activeThis[key]) {
-            forEach(activeThis[key]._options, k => {
-                defineProperty(activeThis, k, key)
-            })
+export const useData = function (opt, vueOptions = {}, hasCreateTarget = null) {
+    let o = null;
+    if (!isObject(hasCreateTarget)) {
+        o = {
+            [useReavtiveData]: true,
+            [mergeKey]: new VModel(opt),
+            [optionKey]: opt,
+            ...vueOptions,
+            __isUse: true
         }
-    }
-}
-const created = function (key, opt) {
-    activeThis = this
-    let $k = `$${key}`
-    let k = key
-    if (this.$options && this.$options[k]) this[$k] = this.$options[k]
-    else if (extendParents) this[$k] = this.$parent && this.$parent[$k]
-    hasSymbolKeyHandler(key)
-}
-const destroy = function (bol) {
-    if (bol) {
-        [...setKeys].forEach(k => {
-            if (hasOwn(activeThis, k) && activeMap.has(k)) {
-                activeMap.get(k).destroy()
-                activeMap.delete(k)
-            }
-        })
-        updatedCheck = null
-    }
-}
-const hasKey = function (keyOrOpt, opt) {
-    if (isObject(keyOrOpt)) {
-        if (setKeys.has(symbolKey)) return
-        else {
-            _extend(opt, keyOrOpt)
-            setKeys.add(symbolKey)
-            return symbolKey
-        }
-    } else if (setKeys.has(keyOrOpt)) {
-        return
     } else {
-        setKeys.add(keyOrOpt)
-        return keyOrOpt
+        forEach(opt, (key, value) => {
+            hasCreateTarget[mergeKey].add(key, value)
+            _extend(hasCreateTarget[optionKey], opt)
+        })
     }
+    return o
 }
-const mergeUpdeteDep = function (key, opt) {
-    if (!opt || isObject(key)) {
-        opt = key
-        key = symbolKey
-    }
-    updatedCheck = activeMap.get(key)
-    forEach(opt, (k, value) => {
-        updatedCheck.add(k, value)
-    })
-}
-export const useData = (keyOrOpt, opt, vueOption = {}, extendParents, beforeDestroy = true) => {
-    extendParents = extendParents
-    if (isObject(keyOrOpt) && opt === null || !opt) opt = {}
-    let key = hasKey(keyOrOpt, opt)
-    if (!key) return mergeUpdeteDep(keyOrOpt)
-    updatedCheck = new VModel(opt)
-    activeMap.set(key, updatedCheck)
-    Vue.mixin({
-        beforeCreate() {
-            created.call(this, key, opt)
-        },
-        beforeDestroy() {
-            destroy(beforeDestroy)
+export const mergeUseData = function (optArrs) {
+    let hooks = Object.create(null)
+    hooks.mergeUseData = true
+    forEach(optArrs, (k, val) => {
+        if (val.__isUse) _extend(hooks, val)
+        else {
+            let { data } = val
+            delete val.data
+            if (hooks[useReavtiveData]) useData(data, val, hooks)
+            else {
+                _extend(hooks, useData(data, val))
+            }
         }
+
     })
-    return {
-        [key]: updatedCheck,
-        ...vueOption
-    }
+    return hooks
 }

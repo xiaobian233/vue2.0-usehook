@@ -78,11 +78,11 @@ export const useMtreeRender = function () {
                 return <div>{activeThat.reflush && <llsMedia ref="comp"  {...{ props: attrs }} />}</div>
             }
         },
-    }, null, {
+    }, {
         provide() {
             return {
                 getInstall: this,
-                changeCreateElement: true
+                parentChildThis: true,
             }
         }
     })
